@@ -55,8 +55,7 @@ blocks_in_beats$per_block_intersection <- as.numeric(blocks_in_beats$area_inters
 #breakdown of split blocks
 hist(blocks_in_beats$per_block_intersection)
 
-#allow a one percent error 
-blocks_in_beats <- subset(blocks_in_beats, blocks_in_beats$per_block_intersection >= .01)
+
 
 #weight population by how much of block is in beat
 blocks_in_beats$pop_weighted <- blocks_in_beats$POP20 * blocks_in_beats$per_block_intersection
@@ -67,3 +66,24 @@ blocks_in_beats$tract_blockgroup <- paste(blocks_in_beats$TRACTCE20, blocks_in_b
 #make same indicator in block group data
 sd_block_groups$tract_blockgroup <- paste(sd_block_groups$TRACTCE, sd_block_groups$BLKGRPCE, sep="_")
 
+#determine the percentage of each block groups population in each beat
+blocks_in_beats <- blocks_in_beats %>% group_by(tract_blockgroup) %>%
+  mutate(total_blockgroup_pop = sum(POP20,na.rm=T),
+         total_weighted_blockgroup_pop = sum(pop_weighted, na.rm=T))
+
+#now determine what percent of each blockgroups weighted population is in each beat
+blocks_in_beats <- blocks_in_beats %>% group_by(tract_blockgroup, beat) %>%
+  mutate(total_beat_weighted_population = 
+           sum(pop_weighted))  #total population from each block group in a beat
+
+#now calculate what percent that population is of a total block groups population
+blocks_in_beats$percent_blockgroup_population_inbeat <- blocks_in_beats$pop_weighted/blocks_in_beats$total_weighted_blockgroup_pop
+
+blocks_in_beats <- blocks_in_beats %>% distinct(tract_blockgroup, beat, name, percent_blockgroup_population_inbeat, .keep_all = F)
+
+#select just blockgroups merge variable and geoid
+sd_block_groups <- sd_block_groups %>% distinct(tract_blockgroup, GEOID)
+
+blocksgroups_in_beats <- merge(blocks_in_beats, sd_block_groups, by ='tract_blockgroup', all.x = T)
+
+write.csv(blocksgroups_in_beats, "blockgroups_beats_dasymetric.csv", row.names = F)
